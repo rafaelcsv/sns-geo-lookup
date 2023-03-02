@@ -207,7 +207,10 @@ Confirmar que não há valores em falta e conta o número total de freguesias - 
 # counts the missing values in each column.
 colSums(is.na(aces_geo_lookup))
 
-# counts the number of parished by NUTS I
+# shows the rows with missing values
+datatable(aces_geo_lookup[rowSums(is.na(aces_geo_lookup)) > 0, ])
+
+# counts the number of parishes by NUTS I
 datatable(count(aces_geo_lookup, nuts1_2013, sort = TRUE, name = "n freguesias"))
 ```
 
