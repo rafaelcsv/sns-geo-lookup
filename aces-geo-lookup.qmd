@@ -155,14 +155,15 @@ parishes_reference <- parishes_reference |>
   )
 ```
 
-# Pré-Teste
+# Teste Pré Ligação
 
 Confirmar que há correspondência entre municípios.
 
 ```{r pre-test}
-#
+# tests if all values for `cod_mun4` have a match 
 anti_join(municipalities_reference, parishes_reference, by = "cod_mun4")
 
+# tests if all municipality names have a match
 anti_join(municipalities_reference, parishes_reference, by = c("municipio_2013" = "municipio_2013_teste"))
 ```
 
@@ -171,10 +172,18 @@ anti_join(municipalities_reference, parishes_reference, by = c("municipio_2013" 
 União das duas tabelas numa só.
 
 ```{r linkage}
-# links parishes and municipalities
+# links parishes and municipalities, `municipio_2013_teste` is dropped and the column order is defined
 aces_geo_lookup <- full_join(parishes_reference, municipalities_reference, by = "cod_mun4") |>
-  select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2022, aces_2022_cod, ars_2022, ars_2022_cod) |>
-  # adds missing info to 'Estrangeiro' and 'Ignorado'
+  select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2022, aces_2022_cod, ars_2022, ars_2022_cod)
+```
+
+## Correção "Estrangeiro" e "Ignorado"
+
+Adicionam-se valores às colunas em falta para as linhas Estrangeiro e Ignorado.
+
+```{r corresctions-missing}
+# adds missing info to 'Estrangeiro' and 'Ignorado'
+aces_geo_lookup <- aces_geo_lookup |>
   mutate(
     freguesia_2013 = case_when(
       municipio_2013_cod == "0" ~ "Estrangeiro",
@@ -195,30 +204,16 @@ aces_geo_lookup <- full_join(parishes_reference, municipalities_reference, by = 
       municipio_2013_cod == "0" ~ "0",
       municipio_2013_cod == "9999999" ~ "99",
       TRUE ~ as.character(distrito_2013_cod)
-    ),
+    )
   )
 ```
 
-# Pós-Teste
 
-Confirmar que não há valores em falta e conta o número total de freguesias - ver notas.
-
-```{r post-test}
-# counts the missing values in each column.
-colSums(is.na(aces_geo_lookup))
-
-# shows the rows with missing values
-datatable(aces_geo_lookup[rowSums(is.na(aces_geo_lookup)) > 0, ])
-
-# counts the number of parishes by NUTS I
-datatable(count(aces_geo_lookup, nuts1_2013, sort = TRUE, name = "n freguesias"))
-```
-
-# Correções
+## Correção ACES
 
 São corrigidas as fronteiras dos ACES nos concelhos de Lisboa, Porto, Vila Nova de Gaia, Espinho e Gondomar - ver notas.
 
-```{r corrections}
+```{r corrections-aces}
 # cleans up the health cluster boundaries in Lisbon and Porto Metropolitan Areas
 aces_geo_lookup <- aces_geo_lookup |>
   mutate(
@@ -227,8 +222,8 @@ aces_geo_lookup <- aces_geo_lookup |>
       municipio_2013 == "Lisboa" & freguesia_2013 %in% c("Areeiro", "Arroios", "Beato", "Estrela", "Marvila", "Misericórdia", "Olivais", "Parque das Nações", "Penha de França", "Santa Maria Maior", "Santo António", "São Vicente") ~ "ACES Lisboa Central",
       # ACES Lisboa Norte
       municipio_2013 == "Lisboa" & freguesia_2013 %in% c("Alvalade", "Avenidas Novas", "Benfica", "Campolide", "Carnide", "Lumiar", "São Domingos de Benfica", "Santa Clara") ~ "ACES Lisboa Norte",
-      # parish split between ACES Lisboa Central and ACES Lisboa Central
-      municipio_2013 == "Lisboa" & freguesia_2013 %in% c("Campo de Ourique") ~ "ACES Lisboa Norte / ACES Lisboa Ocidental/Oeiras",
+      # parish split between ACES Lisboa Central and ACES Lisboa Ocidental/Oeiras
+      municipio_2013 == "Lisboa" & freguesia_2013 %in% c("Campo de Ourique") ~ "ACES Lisboa Central / ACES Lisboa Ocidental/Oeiras",
       # ACES Lisboa Ocidental/Oeiras
       municipio_2013 == "Lisboa" & freguesia_2013 %in% c("Ajuda", "Belém", "Alcântara", "Campo de Ourique") ~ "ACES Lisboa Ocidental/Oeiras",
       municipio_2013 == "Oeiras" ~ "ACES Lisboa Ocidental/Oeiras",
@@ -246,6 +241,21 @@ aces_geo_lookup <- aces_geo_lookup |>
     ),
     aces_2022 = str_replace_all(aces_2022, "ACeS", "ACES")
   )
+```
+
+# Teste Pós Ligação
+
+Confirmar que não há valores em falta e conta o número total de freguesias - ver notas.
+
+```{r post-test}
+# counts the missing values in each column.
+colSums(is.na(aces_geo_lookup))
+
+# shows the rows with missing values
+datatable(aces_geo_lookup[rowSums(is.na(aces_geo_lookup)) > 0, ])
+
+# counts the number of parishes by NUTS I
+datatable(count(aces_geo_lookup, nuts1_2013, sort = TRUE, name = "n freguesias"))
 ```
 
 # Notas
