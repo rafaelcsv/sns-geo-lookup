@@ -1,5 +1,5 @@
 ---
-title: "Tabela de pesquisa das áreas de abrangência dos cuidados de saúde primários portugueses (versão de 2022)"
+title: "Tabela de pesquisa das áreas de abrangência das Unidades Locais de Saúde (versão de 2023)"
 author:
   name: "Rafael Vasconcelos"
 date: "`r Sys.Date()`"
@@ -173,7 +173,7 @@ União das duas tabelas numa só.
 
 ```{r linkage}
 # links parishes and municipalities, `municipio_2013_teste` is dropped and the column order is defined
-aces_geo_lookup <- full_join(parishes_reference, municipalities_reference, by = "cod_mun4") |>
+sns_geo_lookup <- full_join(parishes_reference, municipalities_reference, by = "cod_mun4") |>
   select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2022, aces_2022_cod, ars_2022, ars_2022_cod)
 ```
 
@@ -181,9 +181,10 @@ aces_geo_lookup <- full_join(parishes_reference, municipalities_reference, by = 
 
 Adicionam-se valores às colunas em falta para as linhas Estrangeiro e Ignorado.
 
+
 ```{r corresctions-missing}
 # adds missing info to 'Estrangeiro' and 'Ignorado'
-aces_geo_lookup <- aces_geo_lookup |>
+sns_geo_lookup <- sns_geo_lookup |>
   mutate(
     freguesia_2013 = case_when(
       municipio_2013_cod == "0" ~ "Estrangeiro",
@@ -215,7 +216,7 @@ São corrigidas as fronteiras dos ACES nos concelhos de Lisboa, Porto, Vila Nova
 
 ```{r corrections-aces}
 # cleans up the health cluster boundaries in Lisbon and Porto Metropolitan Areas
-aces_geo_lookup <- aces_geo_lookup |>
+sns_geo_lookup <- sns_geo_lookup |>
   mutate(
     aces_2022 = case_when(
       # ACES Lisboa Central
@@ -243,19 +244,48 @@ aces_geo_lookup <- aces_geo_lookup |>
   )
 ```
 
+
+# Ligação ACES para ULS
+
+Incorporar novas ULS de 2024.
+
+```{r linkage-uls}
+# loads ULS linkage file
+uls_reference <- import("inputs/reorganizacao-uls-2024.xlsx") |> clean_names() |> rename(uls_2024 = designacao, aces_2022 = componentes_curto) |> mutate(
+  uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde da ", "ULS "),
+  uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde de ", "ULS "),
+  uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde do ", "ULS "),
+  uls_2024 = str_remove(uls_2024, ", E. P. E.")
+  ) |>
+  filter(!str_detect(uls_2024, "Instituto Português de Oncologia")) |>
+  filter(!str_detect(aces_2022, "Centro de Medicina de Reabilitação ")) |>
+  filter(!str_detect(aces_2022, "Hospital ")) |>
+  filter(!str_detect(aces_2022, "Centro Hospitalar ")) |>
+  filter(!str_detect(aces_2022, "Instituto de Oftalmologia ")) |>
+  filter(!str_detect(aces_2022, "Laboratório de Saúde Pública ")) |>
+  select(uls_2024, aces_2022)
+
+# links ACES and ULS, the column order is defined
+sns_geo_lookup <- full_join(uls_reference, sns_geo_lookup, by = "aces_2022")
+  
+  #select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2022, aces_2022_cod, ars_2022, ars_2022_cod, uls_2024)
+```
+
+
+
 # Teste Pós Ligação
 
 Confirmar que não há valores em falta e conta o número total de freguesias - ver notas.
 
 ```{r post-test}
 # counts the missing values in each column.
-colSums(is.na(aces_geo_lookup))
+colSums(is.na(sns_geo_lookup))
 
 # shows the rows with missing values
-datatable(aces_geo_lookup[rowSums(is.na(aces_geo_lookup)) > 0, ])
+datatable(sns_geo_lookup[rowSums(is.na(sns_geo_lookup)) > 0, ])
 
 # counts the number of parishes by NUTS I
-datatable(count(aces_geo_lookup, nuts1_2013, sort = TRUE, name = "n freguesias"))
+datatable(count(sns_geo_lookup, nuts1_2013, sort = TRUE, name = "n freguesias"))
 ```
 
 # Notas
@@ -274,15 +304,15 @@ Apesar de oficialmente [não existir freguesia na vila de Corvo](https://express
 
 # Results
 
-É gravado um ficheiro `aces-geo-lookup.csv` com a informação que se pode consultar em baixo.
+É gravado um ficheiro `sns-geo-lookup.csv` com a informação que se pode consultar em baixo.
 
 ```{r results}
 # saves as .csv
-write.csv(aces_geo_lookup, file = "outputs/aces-geo-lookup.csv", fileEncoding = "UTF-8", row.names = FALSE)
+write.csv(sns_geo_lookup, file = "outputs/snss-geo-lookup.csv", fileEncoding = "UTF-8", row.names = FALSE)
 
 
 # shows the resulting data.frame as a html table
-datatable(aces_geo_lookup)
+datatable(sns_geo_lookup)
 ```
 
 # Próximos passos
@@ -295,4 +325,3 @@ Prevê-se que sejam necessárias novas colunas em 2023 com a reorganização das
 
 -   [ ] Incorporar coluna com nomes (e códigos?) de freguesias anteriores a 2012, para dados históricos;
 -   [ ] Incorporar coluna com nomes de NUTS anteriores a 2013, para dados históricos;
--   [ ] Incorporar novas ULS de 2023 quando estiverem definidas as áreas de abrangência.
