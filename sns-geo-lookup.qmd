@@ -1,5 +1,5 @@
 ---
-title: "Tabela de pesquisa das áreas de abrangência das Unidades Locais de Saúde (versão de 2023)"
+title: "Tabela de pesquisa das áreas de abrangência das Unidades Locais de Saúde (versão de 2025)"
 author:
   name: "Rafael Vasconcelos"
 date: "`r Sys.Date()`"
@@ -54,7 +54,7 @@ pacman::p_load(
 
 # Carregamento de dados
 
-Carrega um ficheiro com a informação de ACES por município (atual a 2022-12-31).
+Carrega um ficheiro com a informação de ACES por município (atualizado a 2023-12-31).
 
 ```{r load-municipalities}
 # loads municipalities linkage file
@@ -88,8 +88,8 @@ municipalities_reference <- municipalities_reference |>
     municipio_2002_cod = "cod_geo_nuts2002",
     ars_2022 = "ars",
     ars_2022_cod = "cod_ars",
-    aces_2022 = "aces2",
-    aces_2022_cod = "cod_aces",
+    aces_2023 = "aces2",
+    aces_2023_cod = "cod_aces",
     pais_cod = "cod_pais"
   ) |>
   mutate(
@@ -160,7 +160,7 @@ parishes_reference <- parishes_reference |>
 Confirmar que há correspondência entre municípios.
 
 ```{r pre-test}
-# tests if all values for `cod_mun4` have a match 
+# tests if all values for `cod_mun4` have a match
 anti_join(municipalities_reference, parishes_reference, by = "cod_mun4")
 
 # tests if all municipality names have a match
@@ -174,13 +174,12 @@ União das duas tabelas numa só.
 ```{r linkage}
 # links parishes and municipalities, `municipio_2013_teste` is dropped and the column order is defined
 sns_geo_lookup <- full_join(parishes_reference, municipalities_reference, by = "cod_mun4") |>
-  select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2022, aces_2022_cod, ars_2022, ars_2022_cod)
+  select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2023, aces_2023_cod, ars_2022, ars_2022_cod)
 ```
 
 ## Correção "Estrangeiro" e "Ignorado"
 
 Adicionam-se valores às colunas em falta para as linhas Estrangeiro e Ignorado.
-
 
 ```{r corresctions-missing}
 # adds missing info to 'Estrangeiro' and 'Ignorado'
@@ -218,7 +217,7 @@ São corrigidas as fronteiras dos ACES nos concelhos de Lisboa, Porto, Vila Nova
 # cleans up the health cluster boundaries in Lisbon and Porto Metropolitan Areas
 sns_geo_lookup <- sns_geo_lookup |>
   mutate(
-    aces_2022 = case_when(
+    aces_2023 = case_when(
       # ACES Lisboa Central
       municipio_2013 == "Lisboa" & freguesia_2013 %in% c("Areeiro", "Arroios", "Beato", "Estrela", "Marvila", "Misericórdia", "Olivais", "Parque das Nações", "Penha de França", "Santa Maria Maior", "Santo António", "São Vicente") ~ "ACES Lisboa Central",
       # ACES Lisboa Norte
@@ -238,37 +237,83 @@ sns_geo_lookup <- sns_geo_lookup |>
       municipio_2013 == "Vila Nova de Gaia" & freguesia_2013 %in% c("Arcozelo", "Canelas", "Madalena", "São Félix da Marinha", "União das freguesias de Grijó e Sermonde", "União das freguesias de Gulpilhares e Valadares", "União das freguesias de Pedroso e Seixezelo", "União das freguesias de Sandim, Olival, Lever e Crestuma", "União das freguesias de Serzedo e Perosinho") ~ "ACES Espinho/Gaia",
       municipio_2013 == "Gondomar" & freguesia_2013 %in% c("Lomba") ~ "ACES Espinho/Gaia",
       municipio_2013 == "Espinho" ~ "ACES Espinho/Gaia",
-      TRUE ~ as.character(aces_2022)
+      TRUE ~ as.character(aces_2023)
     ),
-    aces_2022 = str_replace_all(aces_2022, "ACeS", "ACES")
+    aces_2023 = str_replace_all(aces_2023, "ACeS", "ACES"),
+    aces_2023 = str_replace_all(aces_2023, " Da ", " da "),
+    aces_2023 = str_replace_all(aces_2023, "Almada/Seixal", "Almada-Seixal"),
+    aces_2023 = str_replace_all(aces_2023, "Loures/Odivelas", "Loures-Odivelas"),
+    aces_2023 = str_replace_all(aces_2023, "Lisboa Ocidental/Oeiras", "Lisboa Ocidental e Oeiras")
   )
 ```
 
 
-# Ligação ACES para ULS
+# Reorganização em ULS
 
-Incorporar novas ULS de 2024.
+Incorporar novas ULS, já com a alteração nas ULS Entre Douro e Vouga e ULS Região de Aveiro, que vigoram desde 1 de outubro de 2024.
 
 ```{r linkage-uls}
 # loads ULS linkage file
-uls_reference <- import("inputs/reorganizacao-uls-2024.xlsx") |> clean_names() |> rename(uls_2024 = designacao, aces_2022 = componentes_curto) |> mutate(
-  uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde da ", "ULS "),
-  uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde de ", "ULS "),
-  uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde do ", "ULS "),
-  uls_2024 = str_remove(uls_2024, ", E. P. E.")
+uls_reference <- import("inputs/reorganizacao-uls.xlsx", sheet = 2) |>
+  clean_names() |>
+  rename(uls_2024 = designacao, aces_2023 = componentes_curto) |>
+  mutate(
+    uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde da ", "ULS "),
+    uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde de ", "ULS "),
+    uls_2024 = str_replace(uls_2024, "Unidade Local de Saúde do ", "ULS "),
+    uls_2024 = str_remove(uls_2024, ", E. P. E.")
   ) |>
   filter(!str_detect(uls_2024, "Instituto Português de Oncologia")) |>
-  filter(!str_detect(aces_2022, "Centro de Medicina de Reabilitação ")) |>
-  filter(!str_detect(aces_2022, "Hospital ")) |>
-  filter(!str_detect(aces_2022, "Centro Hospitalar ")) |>
-  filter(!str_detect(aces_2022, "Instituto de Oftalmologia ")) |>
-  filter(!str_detect(aces_2022, "Laboratório de Saúde Pública ")) |>
-  select(uls_2024, aces_2022)
+  filter(!str_detect(aces_2023, "Centro de Medicina de Reabilitação ")) |>
+  filter(!str_detect(aces_2023, "Hospital ")) |>
+  filter(!str_detect(aces_2023, "Centro Hospitalar ")) |>
+  filter(!str_detect(aces_2023, "Instituto de Oftalmologia ")) |>
+  filter(!str_detect(aces_2023, "Laboratório de Saúde Pública ")) |>
+  filter(!str_detect(aces_2023, "ULS Castelo Branco")) |>
+  select(uls_2024, aces_2023) |>
+  add_row(uls_2024 = "ULS Castelo Branco", aces_2023 = "ACES Beira Interior Sul (ULS Castelo Branco)") |>
+  add_row(uls_2024 = "ULS Castelo Branco", aces_2023 = "ACES Pinhal Interior Sul (ULS Castelo Branco)") |>
+  ## incorporate the municipality and parish changes in SNS organization from the 2024 ULS reform
+  full_join(sns_geo_lookup |> distinct(aces_2023, municipio_2013, freguesia_2013), by = "aces_2023") |>
+  mutate(
+    across(c(aces_2023, uls_2024), ~ case_when(
+      freguesia_2013 %in% c("Camarate", "Unhos", "Apelação") ~ ifelse(cur_column() == "aces_2023", "ACES Loures-Odivelas", "ULS São José"),
+      municipio_2013 == "Ovar" ~ ifelse(cur_column() == "aces_2023", "ACES Baixo Vouga", "ULS Entre Douro e Vouga"),
+      municipio_2013 %in% c("Águeda", "Albergaria-a-Velha", "Anadia", "Aveiro", "Estarreja", "Ílhavo", "Murtosa", "Oliveira do Bairro", "Sever do Vouga", "Vagos") ~ ifelse(cur_column() == "aces_2023", "ACES Baixo Vouga", "ULS Região de Aveiro"),
+      municipio_2013 == "Mafra" ~ ifelse(cur_column() == "aces_2023", "ACES Oeste Sul", "ULS Santa Maria"),
+      municipio_2013 %in% c("Alcobaça", "Nazaré") ~ ifelse(cur_column() == "aces_2023", "ACES Oeste Norte", "ULS Região de Leiria"),
+      municipio_2013 %in% c("Bombarral", "Caldas da Rainha", "Óbidos", "Peniche") ~ ifelse(cur_column() == "aces_2023", "ACES Oeste Norte", "ULS Região de Leiria"),
+      municipio_2013 == "Ourém" ~ ifelse(cur_column() == "aces_2023", "ACES Médio Tejo", "ULS Região de Leiria"),
+      municipio_2013 %in% c("Abrantes", "Alcanena", "Constância", "Entroncamento", "Ferreira do Zêzere", "Mação", "Sardoal", "Torres Novas", "Tomar", "Vila Nova da Barquinha") ~ ifelse(cur_column() == "aces_2023", "ACES Médio Tejo", "ULS Médio Tejo"),
+      municipio_2013 == "Celorico de Basto" ~ ifelse(cur_column() == "aces_2023", "ACES Baixo Tâmega", "ULS Alto Ave"),
+      municipio_2013 %in% c("Cantanhede", "Coimbra", "Condeixa-a-Nova", "Mealhada", "Mira", "Mortágua", "Penacova") ~ ifelse(cur_column() == "aces_2023", "ACES Baixo Mondego", "ULS Coimbra"),
+      municipio_2013 %in% c("Figueira da Foz", "Soure", "Montemor-o-Velho") ~ ifelse(cur_column() == "aces_2023", "ACES Baixo Mondego", "ULS Baixo Mondego"),
+      municipio_2013 == "Vila de Rei" ~ ifelse(cur_column() == "aces_2023", "ACES Pinhal Interior Sul (ULS Castelo Branco)", "ULS Médio Tejo"),
+      municipio_2013 %in% c("Idanha-a-Nova", "Penamacor", "Vila Velha de Ródão") ~ ifelse(cur_column() == "aces_2023", "ACES Beira Interior Sul (ULS Castelo Branco)", "ULS Castelo Branco"),
+      municipio_2013 %in% c("Oleiros", "Proença-a-Nova", "Sertã") ~ ifelse(cur_column() == "aces_2023", "ACES Pinhal Interior Sul (ULS Castelo Branco)", "ULS Castelo Branco"),
+      aces_2023 == "ACES Lisboa Central / ACES Lisboa Ocidental e Oeiras" ~ ifelse(cur_column() == "aces_2023", "ACES Lisboa Central / ACES Lisboa Ocidental e Oeiras", "ULS Lisboa Ocidental"),
+      aces_2023 %in% c("ACES Funchal", "ACES Madeira Oeste", "ACES Madeira Este", "ACES Porto Santo", "USI Santa Maria", "USI São Miguel", "USI Terceira", "USI Graciosa", "USI São Jorge", "USI Pico", "USI Faial", "USI Flores", "USI Corvo", "Ignorado", "Estrangeiro") ~ aces_2023,
+      TRUE ~ .
+    ))
+  ) |>
+  filter(!str_detect(aces_2023, "CS "))
 
-# links ACES and ULS, the column order is defined
-sns_geo_lookup <- full_join(uls_reference, sns_geo_lookup, by = "aces_2022")
-  
-  #select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2022, aces_2022_cod, ars_2022, ars_2022_cod, uls_2024)
+# links ACES and ULS, then the column order is defined
+sns_geo_lookup <- right_join(uls_reference, sns_geo_lookup, by = c("aces_2023", "municipio_2013", "freguesia_2013")) |> select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2023, aces_2023_cod, ars_2022, ars_2022_cod, uls_2024)
+```
+
+
+
+# NUTS 2024
+
+Incorpora novas [NUTS 2024](https://cse.ine.pt/ngt_server/attachfileu.jsp?look_parentBoui=619950284&att_display=n&att_download=y) e respetivos códigos utilizados pelo INE.
+
+```{r linkage-uls}
+# loads ULS linkage file
+nuts_reference <- import("inputs/nuts-2024.xlsx") |> select(municipio_2013, municipio_2024, nuts3_2024, nuts3_2024_cod, nuts2_2024, nuts2_2024_cod, nuts1_2024, nuts1_2024_cod)
+
+# links ACES and ULS, then the column order is defined
+sns_geo_lookup <- left_join(sns_geo_lookup, nuts_reference, by = "municipio_2013") |> select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2023, aces_2023_cod, ars_2022, ars_2022_cod, uls_2024, municipio_2024, nuts3_2024, nuts3_2024_cod, nuts2_2024, nuts2_2024_cod, nuts1_2024, nuts1_2024_cod)
 ```
 
 
@@ -287,6 +332,7 @@ datatable(sns_geo_lookup[rowSums(is.na(sns_geo_lookup)) > 0, ])
 # counts the number of parishes by NUTS I
 datatable(count(sns_geo_lookup, nuts1_2013, sort = TRUE, name = "n freguesias"))
 ```
+
 
 # Notas
 
@@ -308,20 +354,16 @@ Apesar de oficialmente [não existir freguesia na vila de Corvo](https://express
 
 ```{r results}
 # saves as .csv
-write.csv(sns_geo_lookup, file = "outputs/snss-geo-lookup.csv", fileEncoding = "UTF-8", row.names = FALSE)
+write.csv(sns_geo_lookup, file = "outputs/sns-geo-lookup.csv", fileEncoding = "UTF-8", row.names = FALSE)
 
+writexl::write_xlsx(municipalities_reference, path = "outputs/municipalities_reference.xlsx")
 
 # shows the resulting data.frame as a html table
 datatable(sns_geo_lookup)
 ```
 
+
 # Próximos passos
-
-::: {.callout-tip appearance="simple"}
-### Perspetivas de futuro
-
-Prevê-se que sejam necessárias novas colunas em 2023 com a reorganização das [NUTS](https://ec.europa.eu/transparency/documents-register/detail?ref=C(2022)9242&lang=pt) e dos [ACES/ULS](https://eco.sapo.pt/2023/01/27/ceo-do-sns-quer-criar-novas-unidades-locais-de-saude/).
-:::
 
 -   [ ] Incorporar coluna com nomes (e códigos?) de freguesias anteriores a 2012, para dados históricos;
 -   [ ] Incorporar coluna com nomes de NUTS anteriores a 2013, para dados históricos;
