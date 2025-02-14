@@ -17,8 +17,6 @@ format:
 theme:
   light: cosmo
   dark: [cosmo, theme-dark.scss]
-project:
-  output-dir: outputs/
 ---
 
 # Arrumação
@@ -86,8 +84,8 @@ municipalities_reference <- municipalities_reference |>
     municipio_2013 = "geo",
     municipio_2013_cod = "cod_geo",
     municipio_2002_cod = "cod_geo_nuts2002",
-    ars_2022 = "ars",
-    ars_2022_cod = "cod_ars",
+    ars_2023 = "ars",
+    ars_2023_cod = "cod_ars",
     aces_2023 = "aces2",
     aces_2023_cod = "cod_aces",
     pais_cod = "cod_pais"
@@ -174,7 +172,7 @@ União das duas tabelas numa só.
 ```{r linkage}
 # links parishes and municipalities, `municipio_2013_teste` is dropped and the column order is defined
 sns_geo_lookup <- full_join(parishes_reference, municipalities_reference, by = "cod_mun4") |>
-  select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2023, aces_2023_cod, ars_2022, ars_2022_cod)
+  select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2023, aces_2023_cod, ars_2023, ars_2023_cod)
 ```
 
 ## Correção "Estrangeiro" e "Ignorado"
@@ -207,7 +205,6 @@ sns_geo_lookup <- sns_geo_lookup |>
     )
   )
 ```
-
 
 ## Correção ACES
 
@@ -246,7 +243,6 @@ sns_geo_lookup <- sns_geo_lookup |>
     aces_2023 = str_replace_all(aces_2023, "Lisboa Ocidental/Oeiras", "Lisboa Ocidental e Oeiras")
   )
 ```
-
 
 # Reorganização em ULS
 
@@ -298,25 +294,37 @@ uls_reference <- import("inputs/reorganizacao-uls.xlsx", sheet = 2) |>
   ) |>
   filter(!str_detect(aces_2023, "CS "))
 
-# links ACES and ULS, then the column order is defined
-sns_geo_lookup <- right_join(uls_reference, sns_geo_lookup, by = c("aces_2023", "municipio_2013", "freguesia_2013")) |> select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2023, aces_2023_cod, ars_2022, ars_2022_cod, uls_2024)
+# links ACES and ULS
+sns_geo_lookup <- right_join(uls_reference, sns_geo_lookup, by = c("aces_2023", "municipio_2013", "freguesia_2013"))
 ```
-
-
 
 # NUTS 2024
 
 Incorpora novas [NUTS 2024](https://cse.ine.pt/ngt_server/attachfileu.jsp?look_parentBoui=619950284&att_display=n&att_download=y) e respetivos códigos utilizados pelo INE.
 
 ```{r linkage-uls}
-# loads ULS linkage file
+# loads file with new NUTS
 nuts_reference <- import("inputs/nuts-2024.xlsx") |> select(municipio_2013, municipio_2024, nuts3_2024, nuts3_2024_cod, nuts2_2024, nuts2_2024_cod, nuts1_2024, nuts1_2024_cod)
 
-# links ACES and ULS, then the column order is defined
-sns_geo_lookup <- left_join(sns_geo_lookup, nuts_reference, by = "municipio_2013") |> select(freguesia_2013, dicofre_2013, municipio_2013, municipio_2013_cod, municipio_2002_cod, distrito_2013, distrito_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod, nuts2_2013, nuts2_2013_cod, nuts1_2013, nuts1_2013_cod, pais, pais_cod, aces_2023, aces_2023_cod, ars_2022, ars_2022_cod, uls_2024, municipio_2024, nuts3_2024, nuts3_2024_cod, nuts2_2024, nuts2_2024_cod, nuts1_2024, nuts1_2024_cod)
+# links new NUTS and ULS, then the column order is defined
+sns_geo_lookup <- left_join(sns_geo_lookup, nuts_reference, by = "municipio_2013") |> 
+  select(
+    # geographical
+    pais, pais_cod,
+    distrito_2013, distrito_2013_cod,
+    municipio_2013, municipio_2013_cod, municipio_2002_cod, municipio_2024,
+    freguesia_2013, dicofre_2013,
+    
+    # statistical
+    nuts1_2013, nuts1_2013_cod, nuts2_2013, nuts2_2013_cod, nuts3_2013, nuts3_2013_cod, nuts3_2002_cod,
+    nuts1_2024, nuts1_2024_cod, nuts2_2024, nuts2_2024_cod, nuts3_2024, nuts3_2024_cod,
+    
+    # health
+    ars_2022, ars_2022_cod,
+    aces_2023, aces_2023_cod,
+    uls_2024
+  )
 ```
-
-
 
 # Teste Pós Ligação
 
@@ -332,7 +340,6 @@ datatable(sns_geo_lookup[rowSums(is.na(sns_geo_lookup)) > 0, ])
 # counts the number of parishes by NUTS I
 datatable(count(sns_geo_lookup, nuts1_2013, sort = TRUE, name = "n freguesias"))
 ```
-
 
 # Notas
 
@@ -354,16 +361,14 @@ Apesar de oficialmente [não existir freguesia na vila de Corvo](https://express
 
 ```{r results}
 # saves as .csv
-write.csv(sns_geo_lookup, file = "outputs/sns-geo-lookup.csv", fileEncoding = "UTF-8", row.names = FALSE)
-
-writexl::write_xlsx(municipalities_reference, path = "outputs/municipalities_reference.xlsx")
+write.csv(sns_geo_lookup, file = "sns-geo-lookup.csv", fileEncoding = "UTF-8", row.names = FALSE)
 
 # shows the resulting data.frame as a html table
 datatable(sns_geo_lookup)
 ```
 
-
 # Próximos passos
 
+-   [ ] Desagregar freguesias de acordo com as alterações a aprovar em 2025;
 -   [ ] Incorporar coluna com nomes (e códigos?) de freguesias anteriores a 2012, para dados históricos;
 -   [ ] Incorporar coluna com nomes de NUTS anteriores a 2013, para dados históricos;
