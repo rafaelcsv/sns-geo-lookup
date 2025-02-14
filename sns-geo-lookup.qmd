@@ -1,5 +1,5 @@
 ---
-title: "Tabela de pesquisa das áreas de abrangência das Unidades Locais de Saúde (versão de 2025)"
+title: "Tabela de pesquisa das áreas de abrangência das Unidades Locais de Saúde (versão de 2024)"
 author:
   name: "Rafael Vasconcelos"
 date: "`r Sys.Date()`"
@@ -320,7 +320,7 @@ sns_geo_lookup <- left_join(sns_geo_lookup, nuts_reference, by = "municipio_2013
     nuts1_2024, nuts1_2024_cod, nuts2_2024, nuts2_2024_cod, nuts3_2024, nuts3_2024_cod,
     
     # health
-    ars_2022, ars_2022_cod,
+    ars_2023, ars_2023_cod,
     aces_2023, aces_2023_cod,
     uls_2024
   )
